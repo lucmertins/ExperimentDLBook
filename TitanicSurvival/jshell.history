@@ -1,0 +1,38 @@
+IMPORT#>import org.apache.spark.sql.SparkSession;
+VAR#>SparkSession INSTANCE;
+VAR#>SparkSession INSTANCE= SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>org.apache.spark.sql.SparkSession INSTANCE= SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>SparkSession teste=SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>SparkSession teste;
+EXPRESSION#>teste=SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>int x=10;
+EXPRESSION#>clear
+EXPRESSION#>\help
+CMD#>/help
+CMD#>/vars
+CMD#>/reset
+IMPORT#>import org.apache.spark.sql.SparkSession;
+VAR#>SparkSession INSTANCE;
+VAR#>SparkSession INSTANCE= SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>org.apache.spark.sql.SparkSession INSTANCE= SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>SparkSession teste=SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>SparkSession teste;
+EXPRESSION#>teste=SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
+VAR#>int x=10;
+EXPRESSION#>clear
+EXPRESSION#>\help
+CMD#>/help
+CMD#>/vars
+CMD#>/reset
+VAR#>int x=10;
+VAR#>int x=10;
+VAR#>SparkSession teste;
+VAR#>org.apache.spark.sql.SparkSession teste=null;
+CMD#>/reset
+VAR#>int x=0;
+EXPRESSION#>System.out.println("teste");
+VAR#>int x=0;
+EXPRESSION#>1+2
+STATEMENT#>;
+VAR#>int x=0;
+VAR#>int x=0
