@@ -10,6 +10,7 @@ import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.stat.MultivariateStatisticalSummary;
 import org.apache.spark.mllib.stat.Statistics;
+import org.apache.spark.mllib.util.MLUtils;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
@@ -20,6 +21,8 @@ import org.apache.spark.sql.types.DataTypes;
 
 import scala.Option;
 import scala.Some;
+import scala.Tuple2;
+import scala.Tuple3;
 
 public class PrepareDate {
 
@@ -51,6 +54,46 @@ public class PrepareDate {
         public double getLable() {
             return this.label;
         }
+    }
+
+    public static Tuple3<Double, Double, Double> flattenPclass(double value) {
+        Tuple3<Double, Double, Double> result;
+
+        if (value == 1) {
+            result = new Tuple3<>(1d, 0d, 0d);
+        } else if (value == 2) {
+            result = new Tuple3<>(0d, 1d, 0d);
+        } else {
+            result = new Tuple3<>(0d, 0d, 1d);
+        }
+
+        return result;
+    }
+
+    public static Tuple3<Double, Double, Double> flattenEmbarked(double value) {
+        Tuple3<Double, Double, Double> result;
+
+        if (value == 0) {
+            result = new Tuple3<>(1d, 0d, 0d);
+        } else if (value == 1) {
+            result = new Tuple3<>(0d, 1d, 0d);
+        } else {
+            result = new Tuple3<>(0d, 0d, 1d);
+        }
+
+        return result;
+    }
+
+    public static Tuple2<Double, Double> flattenSex(double value) {
+        Tuple2<Double, Double> result;
+
+        if (value == 0) {
+            result = new Tuple2<>(1d, 0d);
+        } else {
+            result = new Tuple2<>(0d, 1d);
+        }
+
+        return result;
     }
 
     public void done() {
@@ -143,44 +186,57 @@ public class PrepareDate {
                 callUDF("normEmbarked", col("Embarked")).alias("Embarked")
         );
 
-//        Vector stddev = Vectors.dense(Math.sqrt(summary.variance().apply(0)), Math.sqrt(summary.variance().apply(1)));
-//        Vector mean = Vectors.dense(summary.mean().apply(0), summary.mean().apply(1));
-//        StandardScalerModel scaler = new StandardScalerModel(stddev, mean);
+        Vector stddev = Vectors.dense(Math.sqrt(summary.variance().apply(0)), Math.sqrt(summary.variance().apply(1)));
+        Vector mean = Vectors.dense(summary.mean().apply(0), summary.mean().apply(1));
+        StandardScalerModel scaler = new StandardScalerModel(stddev, mean);
+
+        Encoder<Integer> integerEncoder = Encoders.INT();
+        Encoder<Double> doubleEncoder = Encoders.DOUBLE();
+
+        Encoder<Vector> vectorEncoder = Encoders.kryo(Vector.class);
+        Encoders.tuple(integerEncoder, vectorEncoder);
+        Encoders.tuple(doubleEncoder, vectorEncoder);
+
+        JavaRDD<VectorPair> scaledRDD = projection2.toJavaRDD().map(row -> {
+            VectorPair vectorPair = new VectorPair();
+            org.apache.spark.mllib.linalg.Vector scaledContinous = scaler.transform(Vectors.dense(row.<Double>getAs("Fare"), row.<Double>getAs("Age")));
+            Tuple3<Double, Double, Double> pclassFlat = flattenPclass(row.<Integer>getAs("Pclass"));
+            Tuple3<Double, Double, Double> embarkedFlat = flattenEmbarked(row.<Integer>getAs("Embarked"));
+            Tuple2<Double, Double> sexFlat = flattenSex(row.<Integer>getAs("Sex"));
+
+            vectorPair.setLable(new Double(row.<Integer>getAs("Survived")));
+            Vector dense = Vectors.dense(
+                    scaledContinous.apply(0),
+                    scaledContinous.apply(1),
+                    sexFlat._1(),
+                    sexFlat._2(),
+                    pclassFlat._1(),
+                    pclassFlat._2(),
+                    pclassFlat._3(),
+                    embarkedFlat._1(),
+                    embarkedFlat._2(),
+                    embarkedFlat._3());
+            vectorPair.setFeatures(dense);
+            return vectorPair;
+        });
+
+        Dataset<Row> scaleDF = spark.createDataFrame(scaledRDD, VectorPair.class);
+
+        Dataset<Row> scaleDF2 = MLUtils.convertVectorColumnsToML(scaleDF);
+
+        Dataset<Row> data = scaleDF2.toDF("features", "label");
+
+        Dataset<Row>[] datasets = data.randomSplit(new double[]{.8, .2}, 12345L);
 //
-//        Encoder<Integer> integerEncoder = Encoders.INT();
-//        Encoder<Double> doubleEncoder = Encoders.DOUBLE();
-//
-//        Encoder<Vector> vectorEncoder = Encoders.kryo(Vector.class);
-//        Encoders.tuple(integerEncoder, vectorEncoder);
-//        Encoders.tuple(doubleEncoder, vectorEncoder);
-//
-//        Dataset<Row> finalDF = projection.select(
-//                col("Survived"),
-//                callUDF("normFare", col("Fare").cast("string")).alias("Fare"),
-//                col("Sex"),
-//                callUDF("normAge", col("Age").cast("string")).alias("Age"),
-//                col("Pclass"),
-//                col("Parch"),
-//                col("SibSp"),
-//                col("Embarked"));
-//
-//        JavaRDD<VectorPair> scaledRDD = projection.toJavaRDD().map(row -> {
-//            VectorPair vectorPair = new VectorPair();
-//            vectorPair.setLable(new Double(row.<Integer>getAs("Survived")));
-//            vectorPair.setFeatures(Util.getScaledVector(
-//                    row.<Double>getAs("Fare"),
-//                    row.<Double>getAs("Age"),
-//                    row.<Integer>getAs("Pclass"),
-//                    row.<Integer>getAs("Sex"),
-//                    row.isNullAt(7) ? 0d : row.<Integer>getAs("Embarked"),
-//                    scaler));
-//
-//            return vectorPair;
-//        });
+        Dataset<Row> training = datasets[0];
+        Dataset<Row> validation = datasets[1];
 
         projection1.show(50);
         projection2.show(50);
         System.out.printf("%f %f %f %f\n", meanFare, meanAge, summary.variance().apply(0), summary.variance().apply(1));
+        scaleDF.show(50);
+        scaleDF2.show(50);
+        training.show();
     }
 
     public static void main(String[] args) {
