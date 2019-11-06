@@ -11,6 +11,7 @@ import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.stat.MultivariateStatisticalSummary;
 import org.apache.spark.mllib.stat.Statistics;
 import org.apache.spark.mllib.util.MLUtils;
+import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
@@ -98,15 +99,17 @@ public class PrepareDate {
 
     public void done() {
         SparkSession spark = SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
-
-        Dataset df = spark.sqlContext()
+        DataFrameReader dataFrame = spark.sqlContext()
                 .read()
                 .format("com.databricks.spark.csv")
                 .option("header", "true")
-                .option("inferSchema", "true")
-                .load("/home/mertins/Desenvolvimento/Java/DeepLearning/ExperimentDLBook/TitanicSurvival/data/train.csv");
+                .option("inferSchema", "true");
+        
+        Dataset dataSet = dataFrame.load("/home/mertins/Desenvolvimento/Java/DeepLearning/ExperimentDLBook/TitanicSurvival/data/train.csv");
 
-        Dataset<Row> projection1 = df.select(
+        dataSet.filter(col("Embarked").isNull()).show();
+        
+        Dataset<Row> projection1 = dataSet.select(
                 col("Survived"),
                 col("Fare"),
                 col("Sex"),
@@ -130,7 +133,7 @@ public class PrepareDate {
 
         UDF1<String, Option<Integer>> normEmbarked = (String d) -> {
             if (d == null) {
-                return Option.apply(null);
+                return Option.apply(0);
             } else {
                 if (d.equals("S")) {
                     return Some.apply(0);
@@ -175,7 +178,7 @@ public class PrepareDate {
         spark.sqlContext().udf().register("normFare", normFare, DataTypes.DoubleType);
         spark.sqlContext().udf().register("normAge", normAge, DataTypes.DoubleType);
 
-        Dataset<Row> projection2 = df.select(
+        Dataset<Row> projection2 = dataSet.select(
                 col("Survived"),
                 callUDF("normFare", col("Fare").cast("string")).alias("Fare"),
                 callUDF("normSex", col("Sex")).alias("Sex"),
@@ -197,6 +200,8 @@ public class PrepareDate {
         Encoders.tuple(integerEncoder, vectorEncoder);
         Encoders.tuple(doubleEncoder, vectorEncoder);
 
+//        projection2.show(10000);
+
         JavaRDD<VectorPair> scaledRDD = projection2.toJavaRDD().map(row -> {
             VectorPair vectorPair = new VectorPair();
             org.apache.spark.mllib.linalg.Vector scaledContinous = scaler.transform(Vectors.dense(row.<Double>getAs("Fare"), row.<Double>getAs("Age")));
@@ -216,6 +221,7 @@ public class PrepareDate {
                     embarkedFlat._1(),
                     embarkedFlat._2(),
                     embarkedFlat._3());
+
             vectorPair.setFeatures(dense);
             return vectorPair;
         });
