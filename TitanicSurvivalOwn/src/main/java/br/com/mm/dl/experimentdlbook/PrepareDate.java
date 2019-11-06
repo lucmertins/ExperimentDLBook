@@ -104,11 +104,11 @@ public class PrepareDate {
                 .format("com.databricks.spark.csv")
                 .option("header", "true")
                 .option("inferSchema", "true");
-        
-        Dataset dataSet = dataFrame.load("/home/mertins/Desenvolvimento/Java/DeepLearning/ExperimentDLBook/TitanicSurvival/data/train.csv");
 
-        dataSet.filter(col("Embarked").isNull()).show();
-        
+        Dataset dataSet = dataFrame.load("/home/mertins/Desenvolvimento/Java/DeepLearning/ExperimentDLBook/TitanicSurvival/data/train.csv");
+// mostrar Embarked null. Ajustei para os portos conforme esta página https://titanicfacts.net/titanic-passenger-list/
+//        dataSet.filter(col("Embarked").isNull()).show();
+
         Dataset<Row> projection1 = dataSet.select(
                 col("Survived"),
                 col("Fare"),
@@ -133,7 +133,7 @@ public class PrepareDate {
 
         UDF1<String, Option<Integer>> normEmbarked = (String d) -> {
             if (d == null) {
-                return Option.apply(0);
+                return Option.apply(0);    // se null  porto Southampton (S)
             } else {
                 if (d.equals("S")) {
                     return Some.apply(0);
@@ -200,8 +200,7 @@ public class PrepareDate {
         Encoders.tuple(integerEncoder, vectorEncoder);
         Encoders.tuple(doubleEncoder, vectorEncoder);
 
-//        projection2.show(10000);
-
+//        projection2.show(50);
         JavaRDD<VectorPair> scaledRDD = projection2.toJavaRDD().map(row -> {
             VectorPair vectorPair = new VectorPair();
             org.apache.spark.mllib.linalg.Vector scaledContinous = scaler.transform(Vectors.dense(row.<Double>getAs("Fare"), row.<Double>getAs("Age")));
@@ -209,7 +208,7 @@ public class PrepareDate {
             Tuple3<Double, Double, Double> embarkedFlat = flattenEmbarked(row.<Integer>getAs("Embarked"));
             Tuple2<Double, Double> sexFlat = flattenSex(row.<Integer>getAs("Sex"));
 
-            vectorPair.setLable(new Double(row.<Integer>getAs("Survived")));
+            vectorPair.setLable(Double.valueOf(row.<Integer>getAs("Survived")));
             Vector dense = Vectors.dense(
                     scaledContinous.apply(0),
                     scaledContinous.apply(1),
@@ -233,16 +232,15 @@ public class PrepareDate {
         Dataset<Row> data = scaleDF2.toDF("features", "label");
 
         Dataset<Row>[] datasets = data.randomSplit(new double[]{.8, .2}, 12345L);
-//
-        Dataset<Row> training = datasets[0];
-        Dataset<Row> validation = datasets[1];
 
-        projection1.show(50);
-        projection2.show(50);
         System.out.printf("%f %f %f %f\n", meanFare, meanAge, summary.variance().apply(0), summary.variance().apply(1));
         scaleDF.show(50);
-        scaleDF2.show(50);
-        training.show();
+        
+        
+        Dataset<Row> training = datasets[0];
+        Dataset<Row> validation = datasets[1];
+//        scaleDF2.show(50);
+//        training.show();
     }
 
     public static void main(String[] args) {
