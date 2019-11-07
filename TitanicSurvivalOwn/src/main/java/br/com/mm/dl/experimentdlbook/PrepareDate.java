@@ -27,6 +27,20 @@ import scala.Tuple3;
 
 public class PrepareDate {
 
+    private Dataset<Row> dataSetPrepare, training, validation;
+
+    public Dataset<Row> getDataSetPrepare() {
+        return dataSetPrepare;
+    }
+
+    public Dataset<Row> getTraining() {
+        return training;
+    }
+
+    public Dataset<Row> getValidation() {
+        return validation;
+    }
+
     public static class VectorPair implements Serializable {
 
         private double label;
@@ -97,7 +111,7 @@ public class PrepareDate {
         return result;
     }
 
-    public void done() {
+    public void prepare() {
         SparkSession spark = SparkSession.builder().master("local[*]").config("spark.sql.warehouse.dir", "/home/mertins/temp/spark").appName("SurvivalPredictionMLP").getOrCreate();
         DataFrameReader dataFrame = spark.sqlContext()
                 .read()
@@ -228,23 +242,23 @@ public class PrepareDate {
         Dataset<Row> scaleDF = spark.createDataFrame(scaledRDD, VectorPair.class);
 
         Dataset<Row> scaleDF2 = MLUtils.convertVectorColumnsToML(scaleDF);
+//        System.out.printf("%f %f %f %f\n", meanFare, meanAge, summary.variance().apply(0), summary.variance().apply(1));
+//        scaleDF.show(50);
+        this.dataSetPrepare = scaleDF2;
+    }
 
-        Dataset<Row> data = scaleDF2.toDF("features", "label");
-
+    public void splitTraining() {
+        Dataset<Row> data = this.dataSetPrepare.toDF("features", "label");
         Dataset<Row>[] datasets = data.randomSplit(new double[]{.8, .2}, 12345L);
-
-        System.out.printf("%f %f %f %f\n", meanFare, meanAge, summary.variance().apply(0), summary.variance().apply(1));
-        scaleDF.show(50);
-        
-        
-        Dataset<Row> training = datasets[0];
-        Dataset<Row> validation = datasets[1];
-//        scaleDF2.show(50);
-//        training.show();
+        this.training = datasets[0];
+        this.validation = datasets[1];
     }
 
     public static void main(String[] args) {
         PrepareDate pd = new PrepareDate();
-        pd.done();
+        pd.prepare();
+        pd.splitTraining();
+        pd.getTraining().show();
+
     }
 }
